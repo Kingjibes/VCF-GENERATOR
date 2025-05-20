@@ -150,7 +150,7 @@ const SessionPage = () => {
             <CheckCircle className="mx-auto h-16 w-16 text-green-500 mb-4" />
             <p className="text-2xl font-semibold text-green-500">Thank You!</p>
             <p className="text-muted-foreground">Your contact information has been submitted come back after
-            setTimeLeft (` ${hours}h ${minutes}m ${seconds}s`); <p to download the vcf file>  </p>
+            setTimeLeft (` ${hours}h ${minutes}m ${seconds}s`);
       .</p>
             <Button onClick={() => navigate('/')} className="mt-6">Back to Home</Button>
           </motion.div>
