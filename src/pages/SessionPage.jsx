@@ -149,9 +149,7 @@ const SessionPage = () => {
           <motion.div variants={itemVariants} className="text-center py-8">
             <CheckCircle className="mx-auto h-16 w-16 text-green-500 mb-4" />
             <p className="text-2xl font-semibold text-green-500">Thank You!</p>
-            <p className="text-muted-foreground">Your contact information has been submitted come back after
-            setTimeLeft (` ${hours}h ${minutes}m ${seconds}s`);
-      .</p>
+            <p className="text-muted-foreground">Your contact information has been submitted.</p>
             <Button onClick={() => navigate('/')} className="mt-6">Back to Home</Button>
           </motion.div>
         );
@@ -168,7 +166,7 @@ const SessionPage = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone" className="text-lg">Phone Number</Label>
-              <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="e.g., +233xxxxxxxx" required className="text-lg p-3" disabled={formSubmitting} />
+              <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="e.g., (555) 123-4567" required className="text-lg p-3" disabled={formSubmitting} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email" className="text-lg">Email (Optional)</Label>
