@@ -29,6 +29,10 @@ export const validatePhoneNumber = (phone) => {
   if (!phone || typeof phone !== 'string') {
     return false;
   }
-  const phoneRegex = /^\+[1-9]\d{1,14}$/; 
+  // Regex: Starts with +, then country code (1-3 digits), then phone number (8-15 digits). No spaces.
+  const phoneRegex = /^\+[1-9]\d{0,2}\d{8,15}$/; 
+  // Example: +1234567890 (1 country code, 9 number) to +123456789012345 (3 country code, 15 number)
+  // The main part \d{8,15} ensures the local number part is between 8 and 15 digits.
+  // The country code part \+[1-9]\d{0,2} ensures it starts with + and has 1 to 3 digits for country code.
   return phoneRegex.test(phone.replace(/\s+/g, ''));
 };
