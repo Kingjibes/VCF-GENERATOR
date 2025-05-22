@@ -55,7 +55,7 @@ const SessionMainContent = ({
           <SessionStatusDisplay {...statusProps} />
           <VcfImportInstructions />
           {isCreator && <Button onClick={() => navigate('/')} className="mt-6"><Home className="mr-2 h-4 w-4" /> Get Back Home</Button>}
-          {!isCreator && 
+          {isCreator && 
             <Button onClick={() => navigate('/')} className="mt-6">
               <Home className="mr-2 h-4 w-4" /> Got it, I'll Come Back Later
             </Button>
