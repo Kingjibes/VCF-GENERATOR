@@ -25,11 +25,11 @@ export const generateVCF = (contacts) => {
   return vcfContent;
 };
 
-export const downloadVCF = (vcfContent, baseFilename = 'CIPHER', count = 1) => {
-  if (!vcfContent) return;
+export const downloadVCF = (vcfContent, baseFilename = 'CIPHER', vcfIdentifier = 1) => {
+  if (!vcfContent) return null;
 
-  const paddedCount = String(count).padStart(3, '0');
-  const filename = `${baseFilename}${paddedCount}.vcf`;
+  const paddedIdentifier = String(vcfIdentifier).padStart(3, '0');
+  const filename = `${baseFilename}${paddedIdentifier}.vcf`;
 
   const blob = new Blob([vcfContent], { type: 'text/vcard;charset=utf-8;' });
   const link = document.createElement('a');
