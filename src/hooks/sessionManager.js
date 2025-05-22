@@ -14,7 +14,7 @@ export const useSessionManager = (setSessions, setLoading) => {
     try {
       const { data: sessionsData, error: sessionsError } = await supabase
         .from('sessions')
-        .select('id, created_at, duration_minutes, expires_at, user_identifier, group_name, short_id, deletion_scheduled_at, user_deleted_at, download_count, contacts (count)')
+        .select('id, created_at, duration_minutes, expires_at, user_identifier, group_name, short_id, deletion_scheduled_at, user_deleted_at, download_count, vcf_download_identifier, contacts (count)')
         .eq('user_identifier', userIdentifier)
         .is('user_deleted_at', null)
         .order('created_at', { ascending: false });
@@ -29,9 +29,10 @@ export const useSessionManager = (setSessions, setLoading) => {
         createdAt: new Date(s.created_at),
         expiresAt: new Date(s.expires_at),
         deletionScheduledAt: new Date(s.deletion_scheduled_at),
-        contacts: s.contacts[0] ? s.contacts : [{count: 0}], // Ensure contacts is an array with at least one element for count
-        contactCount: s.contacts[0] ? s.contacts[0].count : 0, // Store count separately
-        downloadCount: s.download_count || 0
+        contacts: s.contacts[0] ? s.contacts : [{count: 0}],
+        contactCount: s.contacts[0] ? s.contacts[0].count : 0,
+        downloadCount: s.download_count || 0,
+        vcfDownloadIdentifier: s.vcf_download_identifier 
       })));
 
     } catch (error) {
@@ -51,6 +52,13 @@ export const useSessionManager = (setSessions, setLoading) => {
     const shortId = generateShortId();
     
     try {
+      const { data: counterData, error: counterError } = await supabase.rpc('increment_app_counter', { counter_name_param: 'session_vcf_download_name' });
+      if (counterError) {
+        console.error("Error incrementing VCF download name counter:", counterError);
+        throw counterError;
+      }
+      const vcfDownloadIdentifier = counterData;
+
       const { data, error } = await supabase
         .from('sessions')
         .insert([{ 
@@ -61,9 +69,10 @@ export const useSessionManager = (setSessions, setLoading) => {
           group_name: groupName,
           short_id: shortId,
           user_deleted_at: null,
-          download_count: 0
+          download_count: 0,
+          vcf_download_identifier: vcfDownloadIdentifier
         }])
-        .select('id, created_at, duration_minutes, expires_at, user_identifier, group_name, short_id, deletion_scheduled_at, user_deleted_at, download_count, contacts (count)')
+        .select('id, created_at, duration_minutes, expires_at, user_identifier, group_name, short_id, deletion_scheduled_at, user_deleted_at, download_count, vcf_download_identifier, contacts (count)')
         .single();
 
       if (error) {
@@ -81,7 +90,8 @@ export const useSessionManager = (setSessions, setLoading) => {
         deletionScheduledAt: new Date(data.deletion_scheduled_at),
         contacts: data.contacts[0] ? data.contacts : [{count: 0}],
         contactCount: data.contacts[0] ? data.contacts[0].count : 0,
-        downloadCount: data.download_count || 0
+        downloadCount: data.download_count || 0,
+        vcfDownloadIdentifier: data.vcf_download_identifier
       };
       setSessions(prevSessions => [newSession, ...prevSessions]);
       return newSession;
@@ -99,7 +109,7 @@ export const useSessionManager = (setSessions, setLoading) => {
     try {
       const { data: sessionData, error: sessionError } = await supabase
         .from('sessions')
-        .select('id, created_at, duration_minutes, expires_at, user_identifier, group_name, short_id, deletion_scheduled_at, user_deleted_at, download_count')
+        .select('id, created_at, duration_minutes, expires_at, user_identifier, group_name, short_id, deletion_scheduled_at, user_deleted_at, download_count, vcf_download_identifier')
         .eq('short_id', shortId)
         .single();
       
@@ -127,7 +137,8 @@ export const useSessionManager = (setSessions, setLoading) => {
         expiresAt: new Date(sessionData.expires_at),
         deletionScheduledAt: new Date(sessionData.deletion_scheduled_at),
         contacts: contactsData || [],
-        downloadCount: sessionData.download_count || 0
+        downloadCount: sessionData.download_count || 0,
+        vcfDownloadIdentifier: sessionData.vcf_download_identifier
       };
 
     } catch (error) {
@@ -218,7 +229,6 @@ export const useSessionManager = (setSessions, setLoading) => {
     try {
       const { data, error } = await supabase.rpc('increment_download_count', { session_id_param: sessionId });
       if (error) throw error;
-      // Update local state for immediate feedback if needed
       setSessions(prevSessions => 
         prevSessions.map(s => 
           s.id === sessionId ? { ...s, download_count: (s.download_count || 0) + 1 } : s
