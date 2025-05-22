@@ -38,44 +38,24 @@ const SessionCard = ({ session, onDelete }) => {
       return;
     }
     
-    // Fetch full contacts for VCF generation if not already present
     let fullContacts = session.contacts;
     if (session.contacts && session.contacts.length > 0 && session.contacts[0].hasOwnProperty('count')) {
-        // This means we only have the count, need to fetch full contacts
-        // This part is tricky as SessionCard doesn't typically fetch full contacts.
-        // For simplicity, we'll assume if we are here, we might not have full contacts.
-        // A better approach would be to ensure HomePage fetches full contacts if a download is initiated from there,
-        // or SessionPage handles its own downloads with full contact data.
-        // For now, we'll proceed, but this could be a point of failure if fullContacts isn't populated.
-        // The getSessionByShortId in SessionPage.jsx does fetch full contacts.
-        // This card is on HomePage, which fetches counts.
-        // A possible solution: pass a specific download function from HomePage that fetches contacts first.
-        // Or, for now, we can disable download from card if full contacts aren't loaded, or show a message.
-        toast({ title: "Info", description: "To download, please open the session link first."});
-        // A more robust solution would be to fetch contacts here, but it complicates the card component.
-        // For now, let's assume if contacts are needed, the user should go to the session page.
-        // Or, we can try to generate VCF with what we have, if it's not just a count.
-        // This logic needs to be robust based on how `session.contacts` is populated.
-        // If `session.contacts` is an array of actual contact objects (not just count), this will work.
-        // If it's `[{count: X}]`, it won't.
-        // The current `fetchSessions` in `sessionManager` fetches `contacts(count)`.
-        // So, this download from SessionCard will likely not work as intended without full contact data.
-        // We should guide the user to the session page for download.
-        window.open(sessionLink, '_blank'); // Open session page
+        window.open(sessionLink, '_blank'); 
         toast({ title: "Action Required", description: "Please download the VCF from the session page for full contact details." });
         return;
     }
 
-
-    const currentDownloadCount = session.download_count || 0;
-    const newCount = currentDownloadCount + 1;
+    if (!session.vcfDownloadIdentifier) {
+        toast({ title: "Error", description: "VCF download identifier is missing for this session.", variant: "destructive" });
+        return;
+    }
     
-    const vcfData = generateVCF(fullContacts); // Use fullContacts
-    const filename = downloadVCF(vcfData, 'CIPHER', newCount);
+    const vcfData = generateVCF(fullContacts);
+    const filename = downloadVCF(vcfData, 'CIPHER', session.vcfDownloadIdentifier);
     
     if (filename) {
         toast({ title: "VCF Downloaded", description: `'${filename}' has been downloaded.` });
-        await incrementOriginalDownloadCount(session.id);
+        await incrementOriginalDownloadCount(session.id); // This increments the session's specific download_count
     } else {
         toast({ title: "Download Error", description: "Could not prepare VCF for download.", variant: "destructive"});
     }
@@ -86,8 +66,6 @@ const SessionCard = ({ session, onDelete }) => {
       toast({ title: "No Contacts", description: "There are no contacts to share." });
       return;
     }
-    // Similar to download, sharing from card without full contacts is problematic.
-    // Guide to session page.
     window.open(sessionLink, '_blank');
     toast({ title: "Action Required", description: "Please share the VCF from the session page for full contact details." });
     return;
@@ -115,6 +93,7 @@ const SessionCard = ({ session, onDelete }) => {
           <CardTitle className="truncate">{session.group_name || `Session: ${session.short_id}`}</CardTitle>
           <CardDescription>
             Short Link ID: {session.short_id} | Created: {new Date(session.createdAt || session.created_at).toLocaleString()}
+            {session.vcfDownloadIdentifier && ` | File ID: CIPHER${String(session.vcfDownloadIdentifier).padStart(3, '0')}`}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
