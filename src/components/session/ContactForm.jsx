@@ -33,8 +33,8 @@ const ContactForm = ({ onSubmit, formSubmitting }) => {
       return;
     }
     if (!validatePhoneNumber(phone)) {
-      setPhoneError('Invalid phone number. Must start with +countrycode (e.g., +233xxxxxxxxx).');
-      toast({ title: 'Validation Error', description: 'Invalid phone number. Please include your country code (e.g., +233xxxxxxxxx) with no spaces.', variant: 'destructive' });
+      setPhoneError('Invalid phone. Format: +CountryCodeXXXXXXXXX (8-15 digits for number, no spaces).');
+      toast({ title: 'Validation Error', description: 'Invalid phone number. Use format +CountryCodeXXXXXXXXX (e.g., +11234567890). Ensure 8-15 digits for the number part and no spaces.', variant: 'destructive' });
       return;
     }
     setPhoneError('');
@@ -57,7 +57,7 @@ const ContactForm = ({ onSubmit, formSubmitting }) => {
           type="tel" 
           value={phone} 
           onChange={handlePhoneChange} 
-          placeholder="+233xxxxxxxxxx" 
+          placeholder="+1234567890" 
           required 
           className={`text-lg p-3 ${phoneError ? 'border-destructive focus:shadow-[0_0_15px_hsl(var(--destructive)/0.5)]' : ''}`} 
           disabled={formSubmitting} 
