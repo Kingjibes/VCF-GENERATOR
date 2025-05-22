@@ -18,7 +18,7 @@ const SessionPage = () => {
   const { toast } = useToast();
 
   const [session, setSession] = useState(null);
-  const [sessionStatus, setSessionStatus] = useState('loading'); // 'loading', 'active', 'download', 'expired', 'unavailable', 'submitted'
+  const [sessionStatus, setSessionStatus] = useState('loading'); 
   const [timeLeft, setTimeLeft] = useState('');
   const [userSubmitted, setUserSubmitted] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
@@ -64,7 +64,6 @@ const SessionPage = () => {
         setTimeLeft(`Download available for: ${hours}h ${minutes}m ${seconds}s`);
         return true;
       } else {
-        // If already submitted, keep status as 'submitted', otherwise 'active'
         setSessionStatus(userSubmitted ? 'submitted' : 'active');
         const diff = expires.getTime() - now.getTime();
         const hours = Math.floor(diff / (1000 * 60 * 60));
@@ -96,12 +95,40 @@ const SessionPage = () => {
 
     if (result) {
       toast({ title: 'Contact Submitted!', description: 'Your information has been successfully added.' });
-      setUserSubmitted(true); // This will trigger useEffect to update status to 'submitted'
+      setUserSubmitted(true); 
       setSession(prev => ({ ...prev, contacts: [...(prev?.contacts || []), result] }));
     } else {
       toast({ title: 'Submission Error', description: 'Could not submit contact. Session might have just expired.', variant: 'destructive' });
     }
   };
+
+  const handleDownloadVCFFromPage = async () => {
+    if (!session || !session.contacts || session.contacts.length === 0) {
+      toast({ title: "No Contacts", description: "There are no contacts in this session to download.", variant: "destructive" });
+      return;
+    }
+    if (sessionStatus !== 'download' && !(sessionStatus === 'active' && isCreator) && !(sessionStatus === 'submitted' && isCreator) ) {
+      toast({ title: "Not Available", description: "VCF download is not active for this session yet.", variant: "destructive" });
+      return;
+    }
+    if (!session.vcfDownloadIdentifier) {
+      toast({ title: "Error", description: "VCF download identifier is missing for this session.", variant: "destructive" });
+      return;
+    }
+
+    const { generateVCF, downloadVCF } = await import('@/lib/vcfGenerator');
+    const vcfData = generateVCF(session.contacts);
+    const filename = downloadVCF(vcfData, 'CIPHER', session.vcfDownloadIdentifier);
+    
+    if (filename) {
+      toast({ title: "VCF Downloaded", description: `'${filename}' has been downloaded.` });
+      await incrementDownloadCount(session.id); // This increments the session's specific download_count
+      setSession(prev => ({...prev, download_count: (prev.download_count || 0) + 1}));
+    } else {
+      toast({ title: "Download Error", description: "Could not prepare VCF for download.", variant: "destructive"});
+    }
+  };
+
 
   if (pageLoading || (storeLoading && !session && sessionStatus === 'loading')) {
     return (
@@ -136,28 +163,7 @@ const SessionPage = () => {
             isCreator={isCreator}
             formSubmitting={formSubmitting}
             onSubmitContact={handleSubmitContact}
-            onDownloadVCF={async () => { // Wrap handleDownloadVCF for SessionMainContent
-              if (!session || !session.contacts || session.contacts.length === 0) {
-                toast({ title: "No Contacts", description: "There are no contacts in this session to download.", variant: "destructive" });
-                return;
-              }
-              if (sessionStatus !== 'download' && !(sessionStatus === 'active' && isCreator) && !(sessionStatus === 'submitted' && isCreator) ) {
-                toast({ title: "Not Available", description: "VCF download is not active for this session yet.", variant: "destructive" });
-                return;
-              }
-              const { generateVCF, downloadVCF } = await import('@/lib/vcfGenerator');
-              const currentDownloadCount = session.download_count || 0;
-              const newCount = currentDownloadCount + 1;
-              const vcfData = generateVCF(session.contacts);
-              const filename = downloadVCF(vcfData, 'CIPHER', newCount);
-              if (filename) {
-                toast({ title: "VCF Downloaded", description: `'${filename}' has been downloaded.` });
-                await incrementDownloadCount(session.id);
-                setSession(prev => ({...prev, download_count: newCount}));
-              } else {
-                toast({ title: "Download Error", description: "Could not prepare VCF for download.", variant: "destructive"});
-              }
-            }}
+            onDownloadVCF={handleDownloadVCFFromPage}
             userSubmitted={userSubmitted}
             expirationTime={session ? new Date(session.expires_at || session.expiresAt).toLocaleString() : ''}
           />
