@@ -9,7 +9,7 @@ export const useContactManager = (setSessionsGlobal) => {
     try {
       const { data: sessionData, error: sessionError } = await supabase
         .from('sessions')
-        .select('expires_at')
+        .select('expires_at, contacts (name)')
         .eq('id', sessionId)
         .single();
 
@@ -20,6 +20,12 @@ export const useContactManager = (setSessionsGlobal) => {
 
       if (new Date(sessionData.expires_at) < new Date()) {
         toast({ title: "Session Expired", description: "Cannot add contact, session has expired.", variant: "destructive" });
+        return null;
+      }
+
+      const existingNames = (sessionData.contacts || []).map(c => c.name.toLowerCase());
+      if (existingNames.includes(contact.name.toLowerCase())) {
+        toast({ title: "Duplicate Name", description: "This name has already been submitted for this session.", variant: "destructive" });
         return null;
       }
       
@@ -35,7 +41,7 @@ export const useContactManager = (setSessionsGlobal) => {
         setSessionsGlobal(prevSessions =>
           prevSessions.map(s =>
             s.id === sessionId
-              ? { ...s, contacts: [...s.contacts, data] }
+              ? { ...s, contacts: [...(s.contacts || []), data], contactCount: (s.contactCount || 0) + 1 } 
               : s
           )
         );
