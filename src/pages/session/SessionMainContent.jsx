@@ -16,7 +16,8 @@ const SessionMainContent = ({
   onSubmitContact,
   onDownloadVCF,
   userSubmitted,
-  expirationTime
+  expirationTime,
+  existingContactNames
 }) => {
   const navigate = useNavigate();
 
@@ -39,7 +40,11 @@ const SessionMainContent = ({
       content = (
         <>
           <SessionStatusDisplay {...statusProps} />
-          <ContactForm onSubmit={onSubmitContact} formSubmitting={formSubmitting} />
+          <ContactForm 
+            onSubmit={onSubmitContact} 
+            formSubmitting={formSubmitting} 
+            existingContactNames={existingContactNames} 
+          />
         </>
       );
       break;
@@ -48,14 +53,14 @@ const SessionMainContent = ({
       statusProps.iconColorClass = 'text-green-500';
       statusProps.bgColorClass = 'bg-green-500/10';
       statusProps.borderColorClass = 'border-green-500/30';
-      statusProps.timeLeft = ''; // No countdown needed here, message is primary
+      statusProps.timeLeft = ''; 
       statusProps.additionalMessage = `You can come back after the session ends (around ${expirationTime}) to download the VCF file.`;
       content = (
         <>
           <SessionStatusDisplay {...statusProps} />
           <VcfImportInstructions />
           {isCreator && <Button onClick={() => navigate('/')} className="mt-6"><Home className="mr-2 h-4 w-4" /> Get Back Home</Button>}
-          {isCreator && 
+          {!isCreator && 
             <Button onClick={() => navigate('/')} className="mt-6">
               <Home className="mr-2 h-4 w-4" /> Got it, I'll Come Back Later
             </Button>
