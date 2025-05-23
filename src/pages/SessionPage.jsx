@@ -24,6 +24,7 @@ const SessionPage = () => {
   const [pageLoading, setPageLoading] = useState(true);
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [isCreator, setIsCreator] = useState(false);
+  const [existingContactNames, setExistingContactNames] = useState([]);
 
   const fetchAndSetSession = useCallback(async () => {
     setPageLoading(true);
@@ -34,6 +35,7 @@ const SessionPage = () => {
       return;
     }
     setSession(currentSessionData);
+    setExistingContactNames((currentSessionData.contacts || []).map(c => c.name));
     const currentUserIdentifier = getOrCreateUserIdentifier();
     setIsCreator(currentSessionData.user_identifier === currentUserIdentifier);
     setPageLoading(false);
@@ -96,9 +98,13 @@ const SessionPage = () => {
     if (result) {
       toast({ title: 'Contact Submitted!', description: 'Your information has been successfully added.' });
       setUserSubmitted(true); 
-      setSession(prev => ({ ...prev, contacts: [...(prev?.contacts || []), result] }));
+      setSession(prev => {
+        const updatedContacts = [...(prev?.contacts || []), result];
+        setExistingContactNames(updatedContacts.map(c => c.name));
+        return { ...prev, contacts: updatedContacts };
+      });
     } else {
-      toast({ title: 'Submission Error', description: 'Could not submit contact. Session might have just expired.', variant: 'destructive' });
+      toast({ title: 'Submission Error', description: 'Could not submit contact. Session might have just expired or name already exists.', variant: 'destructive' });
     }
   };
 
@@ -122,7 +128,7 @@ const SessionPage = () => {
     
     if (filename) {
       toast({ title: "VCF Downloaded", description: `'${filename}' has been downloaded.` });
-      await incrementDownloadCount(session.id); // This increments the session's specific download_count
+      await incrementDownloadCount(session.id); 
       setSession(prev => ({...prev, download_count: (prev.download_count || 0) + 1}));
     } else {
       toast({ title: "Download Error", description: "Could not prepare VCF for download.", variant: "destructive"});
@@ -166,6 +172,7 @@ const SessionPage = () => {
             onDownloadVCF={handleDownloadVCFFromPage}
             userSubmitted={userSubmitted}
             expirationTime={session ? new Date(session.expires_at || session.expiresAt).toLocaleString() : ''}
+            existingContactNames={existingContactNames}
           />
         </CardContent>
         <SessionFooterInfo session={session} sessionStatus={sessionStatus} userSubmitted={userSubmitted} />
