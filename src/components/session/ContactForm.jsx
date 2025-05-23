@@ -7,7 +7,7 @@ import { Send, Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { validatePhoneNumber } from '@/lib/utils';
 
-const ContactForm = ({ onSubmit, formSubmitting }) => {
+const ContactForm = ({ onSubmit, formSubmitting, existingContactNames = [] }) => {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -28,17 +28,24 @@ const ContactForm = ({ onSubmit, formSubmitting }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!name.trim() || !phone.trim()) {
+    const trimmedName = name.trim();
+    if (!trimmedName || !phone.trim()) {
       toast({ title: 'Validation Error', description: 'Please enter both name and phone number.', variant: 'destructive' });
       return;
     }
+
+    if (existingContactNames.map(n => n.toLowerCase()).includes(trimmedName.toLowerCase())) {
+      toast({ title: 'Duplicate Name', description: 'This name has already been submitted for this session.', variant: 'destructive' });
+      return;
+    }
+
     if (!validatePhoneNumber(phone)) {
       setPhoneError('Invalid phone. Format: +CountryCodeXXXXXXXXX (8-15 digits for number, no spaces).');
       toast({ title: 'Validation Error', description: 'Invalid phone number. Use format +CountryCodeXXXXXXXXX (e.g., +11234567890). Ensure 8-15 digits for the number part and no spaces.', variant: 'destructive' });
       return;
     }
     setPhoneError('');
-    onSubmit({ name, phone, email: email.trim() || null });
+    onSubmit({ name: trimmedName, phone, email: email.trim() || null });
     setName('');
     setPhone('');
     setEmail('');
