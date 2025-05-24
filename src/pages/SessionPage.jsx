@@ -5,11 +5,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useSessionStore } from '@/hooks/useSessionStore';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
-import { getOrCreateUserIdentifier } from '@/lib/utils';
+import { getOrCreateUserIdentifier, USER_IDENTIFIER_KEY } from '@/lib/utils';
 
 import SessionHeader from '@/pages/session/SessionHeader';
 import SessionMainContent from '@/pages/session/SessionMainContent';
 import SessionFooterInfo from '@/pages/session/SessionFooterInfo';
+
+const getSubmittedKeyForSession = (sessionId) => `submittedContact_${getOrCreateUserIdentifier()}_${sessionId}`;
 
 const SessionPage = () => {
   const { shortId } = useParams();
@@ -36,6 +38,14 @@ const SessionPage = () => {
     }
     setSession(currentSessionData);
     setExistingContactNames((currentSessionData.contacts || []).map(c => c.name));
+    
+    const submittedKey = getSubmittedKeyForSession(currentSessionData.id);
+    if (localStorage.getItem(submittedKey) === 'true') {
+      setUserSubmitted(true);
+    } else {
+      setUserSubmitted(false);
+    }
+
     const currentUserIdentifier = getOrCreateUserIdentifier();
     setIsCreator(currentSessionData.user_identifier === currentUserIdentifier);
     setPageLoading(false);
@@ -66,7 +76,10 @@ const SessionPage = () => {
         setTimeLeft(`Download available for: ${hours}h ${minutes}m ${seconds}s`);
         return true;
       } else {
-        setSessionStatus(userSubmitted ? 'submitted' : 'active');
+        const submittedKey = getSubmittedKeyForSession(session.id);
+        const hasAlreadySubmittedThisSession = localStorage.getItem(submittedKey) === 'true';
+        setSessionStatus(hasAlreadySubmittedThisSession || userSubmitted ? 'submitted' : 'active');
+        
         const diff = expires.getTime() - now.getTime();
         const hours = Math.floor(diff / (1000 * 60 * 60));
         const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
@@ -90,6 +103,13 @@ const SessionPage = () => {
       toast({ title: 'Session Not Active', description: 'This session is not currently accepting submissions.', variant: 'destructive' });
       return;
     }
+    
+    const submittedKey = getSubmittedKeyForSession(session.id);
+    if (localStorage.getItem(submittedKey) === 'true') {
+        toast({ title: 'Already Submitted', description: 'You have already submitted your contact for this session.', variant: 'default' });
+        setUserSubmitted(true); // Ensure state is consistent
+        return;
+    }
 
     setFormSubmitting(true);
     const result = await addContactToSession(session.id, contactData);
@@ -97,6 +117,7 @@ const SessionPage = () => {
 
     if (result) {
       toast({ title: 'Contact Submitted!', description: 'Your information has been successfully added.' });
+      localStorage.setItem(submittedKey, 'true');
       setUserSubmitted(true); 
       setSession(prev => {
         const updatedContacts = [...(prev?.contacts || []), result];
