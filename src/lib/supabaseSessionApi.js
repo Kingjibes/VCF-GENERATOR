@@ -6,7 +6,7 @@ const DOWNLOAD_WINDOW_HOURS = 5;
 export const fetchUserSessionsFromDB = async (userIdentifier) => {
   const { data, error } = await supabase
     .from('sessions')
-    .select('id, created_at, duration_minutes, expires_at, user_identifier, group_name, short_id, deletion_scheduled_at, user_deleted_at, download_count, vcf_download_identifier, contacts (count)')
+    .select('id, created_at, duration_minutes, expires_at, user_identifier, group_name, short_id, deletion_scheduled_at, user_deleted_at, download_count, vcf_download_identifier, whatsapp_group_link, contacts (count)')
     .eq('user_identifier', userIdentifier)
     .is('user_deleted_at', null)
     .order('created_at', { ascending: false });
@@ -23,11 +23,12 @@ export const fetchUserSessionsFromDB = async (userIdentifier) => {
     contacts: s.contacts[0] ? s.contacts : [{count: 0}],
     contactCount: s.contacts[0] ? s.contacts[0].count : 0,
     downloadCount: s.download_count || 0,
-    vcfDownloadIdentifier: s.vcf_download_identifier
+    vcfDownloadIdentifier: s.vcf_download_identifier,
+    whatsappGroupLink: s.whatsapp_group_link
   }));
 };
 
-export const createNewSessionInDB = async (durationMinutes, groupName, userIdentifier) => {
+export const createNewSessionInDB = async (durationMinutes, groupName, userIdentifier, whatsappGroupLink) => {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + parseInt(durationMinutes, 10) * 60 * 1000);
   const deletionScheduledAt = new Date(expiresAt.getTime() + DOWNLOAD_WINDOW_HOURS * 60 * 60 * 1000);
@@ -51,9 +52,10 @@ export const createNewSessionInDB = async (durationMinutes, groupName, userIdent
       short_id: shortId,
       user_deleted_at: null,
       download_count: 0,
-      vcf_download_identifier: vcfDownloadIdentifier
+      vcf_download_identifier: vcfDownloadIdentifier,
+      whatsapp_group_link: whatsappGroupLink || null
     }])
-    .select('id, created_at, duration_minutes, expires_at, user_identifier, group_name, short_id, deletion_scheduled_at, user_deleted_at, download_count, vcf_download_identifier, contacts (count)')
+    .select('id, created_at, duration_minutes, expires_at, user_identifier, group_name, short_id, deletion_scheduled_at, user_deleted_at, download_count, vcf_download_identifier, whatsapp_group_link, contacts (count)')
     .single();
 
   if (error) {
@@ -68,14 +70,15 @@ export const createNewSessionInDB = async (durationMinutes, groupName, userIdent
     contacts: data.contacts[0] ? data.contacts : [{count: 0}],
     contactCount: data.contacts[0] ? data.contacts[0].count : 0,
     downloadCount: data.download_count || 0,
-    vcfDownloadIdentifier: data.vcf_download_identifier
+    vcfDownloadIdentifier: data.vcf_download_identifier,
+    whatsappGroupLink: data.whatsapp_group_link
   };
 };
 
 export const fetchSessionByShortIdFromDB = async (shortId) => {
   const { data: sessionData, error: sessionError } = await supabase
     .from('sessions')
-    .select('id, created_at, duration_minutes, expires_at, user_identifier, group_name, short_id, deletion_scheduled_at, user_deleted_at, download_count, vcf_download_identifier')
+    .select('id, created_at, duration_minutes, expires_at, user_identifier, group_name, short_id, deletion_scheduled_at, user_deleted_at, download_count, vcf_download_identifier, whatsapp_group_link')
     .eq('short_id', shortId)
     .single();
   
@@ -104,7 +107,8 @@ export const fetchSessionByShortIdFromDB = async (shortId) => {
     deletionScheduledAt: new Date(sessionData.deletion_scheduled_at),
     contacts: contactsData || [],
     downloadCount: sessionData.download_count || 0,
-    vcfDownloadIdentifier: sessionData.vcf_download_identifier
+    vcfDownloadIdentifier: sessionData.vcf_download_identifier,
+    whatsappGroupLink: sessionData.whatsapp_group_link
   };
 };
 
