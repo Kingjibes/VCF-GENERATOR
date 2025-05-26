@@ -1,102 +1,89 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { useSessionStore } from '@/hooks/useSessionStore';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
-import { getOrCreateUserIdentifier, USER_IDENTIFIER_KEY } from '@/lib/utils';
+import { getOrCreateUserIdentifier } from '@/lib/utils';
 
 import SessionHeader from '@/pages/session/SessionHeader';
 import SessionMainContent from '@/pages/session/SessionMainContent';
 import SessionFooterInfo from '@/pages/session/SessionFooterInfo';
+import { useSessionTimer } from '@/hooks/useSessionTimer';
+import { useSessionData } from '@/hooks/useSessionData';
 
 const getSubmittedKeyForSession = (sessionId) => `submittedContact_${getOrCreateUserIdentifier()}_${sessionId}`;
 
 const SessionPage = () => {
   const { shortId } = useParams();
-  const navigate = useNavigate();
   const { getSessionByShortId, addContactToSession, incrementDownloadCount, loading: storeLoading } = useSessionStore();
   const { toast } = useToast();
 
-  const [session, setSession] = useState(null);
-  const [sessionStatus, setSessionStatus] = useState('loading'); 
-  const [timeLeft, setTimeLeft] = useState('');
+  const {
+    session,
+    setSession,
+    sessionStatus,
+    setSessionStatus,
+    pageLoading,
+    isCreator,
+    existingContactNames,
+    setExistingContactNames,
+    fetchAndSetSessionData,
+  } = useSessionData(shortId, getSessionByShortId);
+  
+  const { timeLeft } = useSessionTimer(session, sessionStatus, setSessionStatus, getSubmittedKeyForSession);
+
   const [userSubmitted, setUserSubmitted] = useState(false);
-  const [pageLoading, setPageLoading] = useState(true);
   const [formSubmitting, setFormSubmitting] = useState(false);
-  const [isCreator, setIsCreator] = useState(false);
-  const [existingContactNames, setExistingContactNames] = useState([]);
-
-  const fetchAndSetSession = useCallback(async () => {
-    setPageLoading(true);
-    const currentSessionData = await getSessionByShortId(shortId);
-    if (!currentSessionData) {
-      setSessionStatus('unavailable');
-      setPageLoading(false);
-      return;
-    }
-    setSession(currentSessionData);
-    setExistingContactNames((currentSessionData.contacts || []).map(c => c.name));
-    
-    const submittedKey = getSubmittedKeyForSession(currentSessionData.id);
-    if (localStorage.getItem(submittedKey) === 'true') {
-      setUserSubmitted(true);
-    } else {
-      setUserSubmitted(false);
-    }
-
-    const currentUserIdentifier = getOrCreateUserIdentifier();
-    setIsCreator(currentSessionData.user_identifier === currentUserIdentifier);
-    setPageLoading(false);
-  }, [getSessionByShortId, shortId]);
+  const [showGroupJoinMessage, setShowGroupJoinMessage] = useState(false);
+  const [groupJoinCountdown, setGroupJoinCountdown] = useState(10);
+  const countdownIntervalRef = useRef(null);
 
   useEffect(() => {
-    fetchAndSetSession();
-  }, [fetchAndSetSession]);
+    fetchAndSetSessionData();
+  }, [fetchAndSetSessionData]);
 
   useEffect(() => {
-    if (!session) return;
+    if (session) {
+      const submittedKey = getSubmittedKeyForSession(session.id);
+      setUserSubmitted(localStorage.getItem(submittedKey) === 'true');
+    }
+  }, [session, sessionStatus]);
 
-    const updateStatusAndTimer = () => {
-      const now = new Date();
-      const expires = new Date(session.expires_at || session.expiresAt);
-      const deletionScheduled = new Date(session.deletion_scheduled_at || session.deletionScheduledAt);
 
-      if (now >= deletionScheduled) {
-        setSessionStatus('expired');
-        setTimeLeft("Session permanently closed.");
-        return false;
-      } else if (now >= expires) {
-        setSessionStatus('download');
-        const diff = deletionScheduled.getTime() - now.getTime();
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-        setTimeLeft(`Download available for: ${hours}h ${minutes}m ${seconds}s`);
-        return true;
-      } else {
-        const submittedKey = getSubmittedKeyForSession(session.id);
-        const hasAlreadySubmittedThisSession = localStorage.getItem(submittedKey) === 'true';
-        setSessionStatus(hasAlreadySubmittedThisSession || userSubmitted ? 'submitted' : 'active');
-        
-        const diff = expires.getTime() - now.getTime();
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-        setTimeLeft(`Submissions open for: ${hours}h ${minutes}m ${seconds}s`);
-        return true;
-      }
-    };
+  const clearCountdown = useCallback(() => {
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+  }, []);
 
-    updateStatusAndTimer();
-    const timerId = setInterval(() => {
-      if (!updateStatusAndTimer()) {
-        clearInterval(timerId);
-      }
-    }, 1000);
-    return () => clearInterval(timerId);
-  }, [session, userSubmitted]);
+  const startGroupJoinCountdown = useCallback(() => {
+    if (session?.whatsappGroupLink) {
+      clearCountdown();
+      setShowGroupJoinMessage(true);
+      setGroupJoinCountdown(10);
+      countdownIntervalRef.current = setInterval(() => {
+        setGroupJoinCountdown(prev => {
+          if (prev <= 1) {
+            clearCountdown();
+            if (session.whatsappGroupLink) {
+              window.location.href = session.whatsappGroupLink;
+            }
+            setShowGroupJoinMessage(false); 
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+  }, [session, clearCountdown]);
+
+  useEffect(() => {
+    return () => clearCountdown(); 
+  }, [clearCountdown]);
+
 
   const handleSubmitContact = async (contactData) => {
     if (sessionStatus !== 'active' || !session) {
@@ -107,7 +94,7 @@ const SessionPage = () => {
     const submittedKey = getSubmittedKeyForSession(session.id);
     if (localStorage.getItem(submittedKey) === 'true') {
         toast({ title: 'Already Submitted', description: 'You have already submitted your contact for this session.', variant: 'default' });
-        setUserSubmitted(true); // Ensure state is consistent
+        setUserSubmitted(true); 
         return;
     }
 
@@ -124,8 +111,21 @@ const SessionPage = () => {
         setExistingContactNames(updatedContacts.map(c => c.name));
         return { ...prev, contacts: updatedContacts };
       });
+      
+      if (session.whatsappGroupLink) {
+        startGroupJoinCountdown();
+      }
+
     } else {
       toast({ title: 'Submission Error', description: 'Could not submit contact. Session might have just expired or name already exists.', variant: 'destructive' });
+    }
+  };
+
+  const handleManualGroupJoin = () => {
+    clearCountdown();
+    setShowGroupJoinMessage(false);
+    if (session?.whatsappGroupLink) {
+      window.location.href = session.whatsappGroupLink;
     }
   };
 
@@ -194,6 +194,10 @@ const SessionPage = () => {
             userSubmitted={userSubmitted}
             expirationTime={session ? new Date(session.expires_at || session.expiresAt).toLocaleString() : ''}
             existingContactNames={existingContactNames}
+            showGroupJoinMessage={showGroupJoinMessage}
+            groupJoinCountdown={groupJoinCountdown}
+            onManualGroupJoin={handleManualGroupJoin}
+            whatsappGroupLink={session?.whatsappGroupLink}
           />
         </CardContent>
         <SessionFooterInfo session={session} sessionStatus={sessionStatus} userSubmitted={userSubmitted} />
