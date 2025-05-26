@@ -27,10 +27,10 @@ export const useSessionManager = (setSessions, setLoading) => {
     }
   }, [toast, userIdentifier, setSessions, setLoading]);
 
-  const createSession = useCallback(async (durationMinutes, groupName) => {
+  const createSession = useCallback(async (durationMinutes, groupName, whatsappGroupLink) => {
     setLoading(true);
     try {
-      const newSession = await createNewSessionInDB(durationMinutes, groupName, userIdentifier);
+      const newSession = await createNewSessionInDB(durationMinutes, groupName, userIdentifier, whatsappGroupLink);
       if (newSession) {
         setSessions(prevSessions => [newSession, ...prevSessions]);
       }
@@ -77,7 +77,7 @@ export const useSessionManager = (setSessions, setLoading) => {
       const { deletedCount, cleanedEmptyCount } = await cleanupExpiredSessionsInDB();
       if (deletedCount > 0) {
         console.log(`Permanently deleted ${deletedCount} sessions past their deletion schedule.`);
-        fetchSessions(); // Re-fetch to update UI if any current user's sessions were among them
+        fetchSessions();
       }
       if (cleanedEmptyCount > 0) {
         console.log(`Cleaned up ${cleanedEmptyCount} empty sessions previously hidden by creator.`);
