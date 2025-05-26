@@ -7,15 +7,17 @@ import { Slider } from '@/components/ui/slider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useSessionStore } from '@/hooks/useSessionStore';
 import SessionCard from '@/components/SessionCard';
-import { PlusCircle, Loader2, Info, CalendarDays, Users } from 'lucide-react';
+import SessionStatsOverview from '@/components/SessionStatsOverview';
+import { PlusCircle, Loader2, Info, CalendarDays, Users, Link2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
-const ONE_WEEK_IN_MINUTES = 7 * 24 * 60; // 10080 minutes
+const ONE_WEEK_IN_MINUTES = 7 * 24 * 60;
 
 const HomePage = () => {
   const { sessions, loading, createSession, markSessionAsDeletedByUser } = useSessionStore();
   const [sessionDuration, setSessionDuration] = useState(ONE_WEEK_IN_MINUTES);
   const [groupName, setGroupName] = useState('');
+  const [whatsappGroupLink, setWhatsappGroupLink] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const { toast } = useToast();
 
@@ -24,11 +26,21 @@ const HomePage = () => {
       toast({ title: "Group Name Required", description: "Please enter a name for your session group.", variant: "destructive" });
       return;
     }
+    if (!whatsappGroupLink.trim()) {
+        toast({ title: "WhatsApp Link Required", description: "Please enter the WhatsApp group link.", variant: "destructive" });
+        return;
+    }
+    if (!whatsappGroupLink.startsWith('https://chat.whatsapp.com/')) {
+        toast({ title: "Invalid WhatsApp Link", description: "Please enter a valid WhatsApp group link (e.g., https://chat.whatsapp.com/...).", variant: "destructive" });
+        return;
+    }
+
     setIsCreating(true);
-    const newSession = await createSession(sessionDuration, groupName.trim());
+    const newSession = await createSession(sessionDuration, groupName.trim(), whatsappGroupLink.trim());
     if (newSession) {
       toast({ title: "Session Created!", description: `Session "${newSession.group_name}" is now active.` });
       setGroupName('');
+      setWhatsappGroupLink('');
       setSessionDuration(ONE_WEEK_IN_MINUTES);
     }
     setIsCreating(false);
@@ -83,7 +95,26 @@ const HomePage = () => {
                 onChange={(e) => setGroupName(e.target.value)} 
                 placeholder="e.g., Project Alpha Team, Conference Attendees" 
                 className="text-lg p-3 bg-background/70 border-border focus:border-primary focus:shadow-[0_0_15px_hsl(var(--primary)/0.5)] transition-all"
+                required
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="whatsappGroupLink" className="text-lg font-medium flex items-center">
+                <Link2 className="mr-2 h-5 w-5 text-primary" /> WhatsApp Group Link
+              </Label>
+              <Input 
+                id="whatsappGroupLink" 
+                type="url" 
+                value={whatsappGroupLink} 
+                onChange={(e) => setWhatsappGroupLink(e.target.value)} 
+                placeholder="https://chat.whatsapp.com/YourGroupInvite" 
+                className="text-lg p-3 bg-background/70 border-border focus:border-primary focus:shadow-[0_0_15px_hsl(var(--primary)/0.5)] transition-all"
+                required
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Important: Participants will be prompted to join this group after submitting their details. The VCF file will be shared here, ensuring only verified participants (those who submitted contacts) get access.
+              </p>
             </div>
             
             <div className="space-y-3">
@@ -93,7 +124,7 @@ const HomePage = () => {
               <Slider 
                 id="duration"
                 min={10} 
-                max={ONE_WEEK_IN_MINUTES * 2} // Max 2 weeks
+                max={ONE_WEEK_IN_MINUTES * 2} 
                 step={10} 
                 value={[sessionDuration]} 
                 onValueChange={(value) => setSessionDuration(value[0])}
@@ -105,13 +136,17 @@ const HomePage = () => {
               </div>
             </div>
 
-            <Button onClick={handleCreateSession} disabled={isCreating || !groupName.trim()} size="lg" className="w-full text-lg py-3 bg-gradient-to-r from-primary to-secondary hover:opacity-90 transition-opacity text-primary-foreground shadow-lg hover:shadow-primary/50">
+            <Button onClick={handleCreateSession} disabled={isCreating || !groupName.trim() || !whatsappGroupLink.trim()} size="lg" className="w-full text-lg py-3 bg-gradient-to-r from-primary to-secondary hover:opacity-90 transition-opacity text-primary-foreground shadow-lg hover:shadow-primary/50">
               {isCreating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlusCircle className="mr-2 h-5 w-5" />}
               Create Session
             </Button>
           </CardContent>
         </Card>
       </motion.section>
+
+      {sessions && sessions.length > 0 && (
+        <SessionStatsOverview sessions={sessions} />
+      )}
 
       <motion.section variants={itemVariants}>
         <h1 className="text-3xl font-bold mb-8 tracking-tight text-center bg-clip-text text-transparent bg-gradient-to-r from-primary via-accent to-secondary">Your Active Sessions</h1>
