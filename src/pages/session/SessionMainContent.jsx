@@ -30,7 +30,6 @@ const GroupJoinSection = ({ countdown, onManualJoin, link }) => (
   </motion.div>
 );
 
-
 const SessionMainContent = ({
   session,
   sessionStatus,
@@ -89,12 +88,6 @@ const SessionMainContent = ({
             <Home className="mr-2 h-4 w-4" /> Get Back Home
           </Button>
         );
-      } else if (!showGroupJoinMessage) {
-        navigationButton = (
-          <Button onClick={() => navigate('/')} className="mt-6">
-            <CheckCircle className="mr-2 h-4 w-4" /> Done, I'll Check Later
-          </Button>
-        );
       }
       break;
     case 'download':
@@ -125,7 +118,7 @@ const SessionMainContent = ({
       statusDisplayProps.iconColorClass = 'text-destructive';
       statusDisplayProps.bgColorClass = 'bg-destructive/10';
       statusDisplayProps.borderColorClass = 'border-destructive/30';
-      mainContent = null; // No specific content, just the status and button
+      mainContent = null;
       if (isCreator) {
         navigationButton = (
           <Button onClick={() => navigate('/')} className="mt-6">
