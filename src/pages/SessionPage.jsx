@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { useSessionStore } from '@/hooks/useSessionStore';
@@ -17,8 +17,8 @@ const getSubmittedKeyForSession = (sessionId) => `submittedContact_${getOrCreate
 
 const SessionPage = () => {
   const { shortId } = useParams();
-  const { toast } = useToast();
   const { getSessionByShortId, addContactToSession, incrementDownloadCount, loading: storeLoading } = useSessionStore();
+  const { toast } = useToast();
 
   const {
     session,
@@ -37,66 +37,65 @@ const SessionPage = () => {
   const [userSubmitted, setUserSubmitted] = useState(false);
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [showGroupJoinMessage, setShowGroupJoinMessage] = useState(false);
-  const [groupJoinCountdown, setGroupJoinCountdown] = useState(4);
-  const countdownRef = useRef(null);
+  const [groupJoinCountdown, setGroupJoinCountdown] = useState(10);
+  const countdownIntervalRef = useRef(null);
 
-  // Cleanup on unmount
   useEffect(() => {
-    return () => {
-      if (countdownRef.current) {
-        clearTimeout(countdownRef.current);
-      }
-    };
+    fetchAndSetSessionData();
+  }, [fetchAndSetSessionData]);
+
+  useEffect(() => {
+    if (session) {
+      const submittedKey = getSubmittedKeyForSession(session.id);
+      setUserSubmitted(localStorage.getItem(submittedKey) === 'true');
+    }
+  }, [session, sessionStatus]);
+
+
+  const clearCountdown = useCallback(() => {
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
   }, []);
 
-  const startCountdown = useCallback(() => {
-    if (!session?.whatsappGroupLink) return;
-
-    setShowGroupJoinMessage(true);
-    setGroupJoinCountdown(4);
-
-    // Visual countdown (updates every second)
-    const interval = setInterval(() => {
-      setGroupJoinCountdown(prev => Math.max(0, prev - 1));
-    }, 1000);
-
-    // Actual redirect after 4 seconds
-    countdownRef.current = setTimeout(() => {
-      window.location.href = session.whatsappGroupLink;
-      clearInterval(interval);
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, [session]);
-
-  const handleManualJoin = () => {
-    if (countdownRef.current) {
-      clearTimeout(countdownRef.current);
-    }
+  const startGroupJoinCountdown = useCallback(() => {
     if (session?.whatsappGroupLink) {
-      window.location.href = session.whatsappGroupLink;
+      clearCountdown();
+      setShowGroupJoinMessage(true);
+      setGroupJoinCountdown(10);
+      countdownIntervalRef.current = setInterval(() => {
+        setGroupJoinCountdown(prev => {
+          if (prev <= 1) {
+            clearCountdown();
+            if (session.whatsappGroupLink) {
+              window.location.href = session.whatsappGroupLink;
+            }
+            setShowGroupJoinMessage(false); 
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
     }
-  };
+  }, [session, clearCountdown]);
+
+  useEffect(() => {
+    return () => clearCountdown(); 
+  }, [clearCountdown]);
+
 
   const handleSubmitContact = async (contactData) => {
     if (sessionStatus !== 'active' || !session) {
-      toast({ 
-        title: 'Session Not Active', 
-        description: 'This session is not currently accepting submissions.', 
-        variant: 'destructive' 
-      });
+      toast({ title: 'Session Not Active', description: 'This session is not currently accepting submissions.', variant: 'destructive' });
       return;
     }
     
     const submittedKey = getSubmittedKeyForSession(session.id);
     if (localStorage.getItem(submittedKey) === 'true') {
-      toast({ 
-        title: 'Already Submitted', 
-        description: 'You have already submitted your contact for this session.', 
-        variant: 'default' 
-      });
-      setUserSubmitted(true); 
-      return;
+        toast({ title: 'Already Submitted', description: 'You have already submitted your contact for this session.', variant: 'default' });
+        setUserSubmitted(true); 
+        return;
     }
 
     setFormSubmitting(true);
@@ -106,43 +105,59 @@ const SessionPage = () => {
     if (result) {
       toast({ title: 'Contact Submitted!', description: 'Your information has been successfully added.' });
       localStorage.setItem(submittedKey, 'true');
-      setUserSubmitted(true);
-      setSession(prev => ({
-        ...prev,
-        contacts: [...(prev?.contacts || []), result]
-      }));
-      setExistingContactNames([...(existingContactNames || []), result.name]);
+      setUserSubmitted(true); 
+      setSession(prev => {
+        const updatedContacts = [...(prev?.contacts || []), result];
+        setExistingContactNames(updatedContacts.map(c => c.name));
+        return { ...prev, contacts: updatedContacts };
+      });
       
       if (session.whatsappGroupLink) {
-        startCountdown();
+        startGroupJoinCountdown();
       }
+
     } else {
-      toast({ 
-        title: 'Submission Error', 
-        description: 'Could not submit contact. Session might have expired or name already exists.', 
-        variant: 'destructive' 
-      });
+      toast({ title: 'Submission Error', description: 'Could not submit contact. Session might have just expired or name already exists.', variant: 'destructive' });
     }
   };
 
-  const handleDownloadVCF = async () => {
-    if (!session?.contacts?.length) {
-      toast({ 
-        title: "No Contacts", 
-        description: "There are no contacts in this session to download.", 
-        variant: "destructive" 
-      });
+  const handleManualGroupJoin = () => {
+    clearCountdown();
+    setShowGroupJoinMessage(false);
+    if (session?.whatsappGroupLink) {
+      window.location.href = session.whatsappGroupLink;
+    }
+  };
+
+  const handleDownloadVCFFromPage = async () => {
+    if (!session || !session.contacts || session.contacts.length === 0) {
+      toast({ title: "No Contacts", description: "There are no contacts in this session to download.", variant: "destructive" });
+      return;
+    }
+    if (sessionStatus !== 'download' && !(sessionStatus === 'active' && isCreator) && !(sessionStatus === 'submitted' && isCreator) ) {
+      toast({ title: "Not Available", description: "VCF download is not active for this session yet.", variant: "destructive" });
+      return;
+    }
+    if (!session.vcfDownloadIdentifier) {
+      toast({ title: "Error", description: "VCF download identifier is missing for this session.", variant: "destructive" });
       return;
     }
 
     const { generateVCF, downloadVCF } = await import('@/lib/vcfGenerator');
     const vcfData = generateVCF(session.contacts);
-    downloadVCF(vcfData, 'CIPHER', session.vcfDownloadIdentifier);
-    await incrementDownloadCount(session.id);
-    setSession(prev => ({ ...prev, download_count: (prev.download_count || 0) + 1 }));
+    const filename = downloadVCF(vcfData, 'CIPHER', session.vcfDownloadIdentifier);
+    
+    if (filename) {
+      toast({ title: "VCF Downloaded", description: `'${filename}' has been downloaded.` });
+      await incrementDownloadCount(session.id); 
+      setSession(prev => ({...prev, download_count: (prev.download_count || 0) + 1}));
+    } else {
+      toast({ title: "Download Error", description: "Could not prepare VCF for download.", variant: "destructive"});
+    }
   };
 
-  if (pageLoading || (storeLoading && !session)) {
+
+  if (pageLoading || (storeLoading && !session && sessionStatus === 'loading')) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-180px)]">
         <Loader2 className="h-12 w-12 text-primary animate-spin" />
@@ -150,12 +165,19 @@ const SessionPage = () => {
     );
   }
 
+  const pageVariants = {
+    initial: { opacity: 0, scale: 0.9 },
+    in: { opacity: 1, scale: 1 },
+    out: { opacity: 0, scale: 0.9 }
+  };
+
   return (
     <motion.div
       className="container mx-auto py-8 px-4 md:px-0 flex flex-col items-center justify-center min-h-[calc(100vh-180px)]"
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
+      initial="initial"
+      animate="in"
+      exit="out"
+      variants={pageVariants}
       transition={{ duration: 0.5 }}
     >
       <Card className="w-full max-w-lg">
@@ -168,13 +190,13 @@ const SessionPage = () => {
             isCreator={isCreator}
             formSubmitting={formSubmitting}
             onSubmitContact={handleSubmitContact}
-            onDownloadVCF={handleDownloadVCF}
+            onDownloadVCF={handleDownloadVCFFromPage}
             userSubmitted={userSubmitted}
-            expirationTime={session?.expires_at?.toLocaleString() || ''}
+            expirationTime={session ? new Date(session.expires_at || session.expiresAt).toLocaleString() : ''}
             existingContactNames={existingContactNames}
             showGroupJoinMessage={showGroupJoinMessage}
             groupJoinCountdown={groupJoinCountdown}
-            onManualGroupJoin={handleManualJoin}
+            onManualGroupJoin={handleManualGroupJoin}
             whatsappGroupLink={session?.whatsappGroupLink}
           />
         </CardContent>
