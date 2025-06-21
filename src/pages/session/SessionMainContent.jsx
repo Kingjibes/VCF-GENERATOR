@@ -1,38 +1,11 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Home, Users as GroupIcon, CheckCircle, Download, ArrowLeft } from 'lucide-react';
+import { Home } from 'lucide-react';
 import SessionStatusDisplay from '@/components/session/SessionStatusDisplay';
 import ContactForm from '@/components/session/ContactForm';
 import DownloadSection from '@/components/session/DownloadSection';
 import VcfImportInstructions from '@/components/session/VcfImportInstructions';
-import { motion } from 'framer-motion';
-
-const GroupJoinSection = ({ countdown, onManualJoin }) => (
-  <motion.div 
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.5 }}
-    className="mt-6 p-4 bg-green-500/10 border border-green-500/30 rounded-lg text-center"
-  >
-    <CheckCircle className="h-8 w-8 text-green-500 mx-auto mb-2" />
-    <p className="text-lg font-semibold text-green-700 dark:text-green-400">Important Next Step!</p>
-    <p className="text-sm text-muted-foreground mb-1">
-      To receive the VCF file with all collected contacts, you <span className="font-bold">must join</span> the WhatsApp group.
-    </p>
-    <p className="text-sm text-muted-foreground mb-3">The VCF file will be shared there once the session concludes.</p>
-    <Button 
-      onClick={onManualJoin} 
-      variant="outline" 
-      className="mb-2 border-green-500 text-green-600 hover:bg-green-500/20"
-    >
-      <GroupIcon className="mr-2 h-4 w-4" /> Join WhatsApp Group Now
-    </Button>
-    <p className="text-xs text-muted-foreground">
-      Auto-redirect in <span className="font-bold text-green-600 dark:text-green-500">{countdown}</span> seconds...
-    </p>
-  </motion.div>
-);
 
 const SessionMainContent = ({
   session,
@@ -43,90 +16,88 @@ const SessionMainContent = ({
   onSubmitContact,
   onDownloadVCF,
   userSubmitted,
-  expirationTime,
-  existingContactNames,
-  showGroupJoinMessage,
-  groupJoinCountdown,
-  onManualGroupJoin,
-  whatsappGroupLink
+  expirationTime
 }) => {
   const navigate = useNavigate();
 
-  const statusConfig = {
-    active: {
-      iconColor: 'text-primary',
-      bgColor: 'bg-primary/10',
-      borderColor: 'border-primary/30',
-      content: <ContactForm {...{ onSubmitContact, formSubmitting, existingContactNames }} />
-    },
-    submitted: {
-      iconColor: 'text-green-500',
-      bgColor: 'bg-green-500/10',
-      borderColor: 'border-green-500/30',
-      message: 'Your contact information has been submitted!',
-      additionalMessage: `VCF file will be available after session ends (${expirationTime}).`,
-      content: <VcfImportInstructions />
-    },
-    download: {
-      iconColor: 'text-accent',
-      bgColor: 'bg-accent/10',
-      borderColor: 'border-accent/30',
-      content: <DownloadSection onDownload={onDownloadVCF} session={session} />
-    },
-    expired: {
-      iconColor: 'text-destructive',
-      bgColor: 'bg-destructive/10',
-      borderColor: 'border-destructive/30',
-      message: 'This session is permanently closed and contacts are no longer available.'
-    },
-    unavailable: {
-      iconColor: 'text-destructive',
-      bgColor: 'bg-destructive/10',
-      borderColor: 'border-destructive/30',
-      message: 'This session is no longer active or could not be found.'
-    }
+  let content;
+  let statusProps = { 
+    timeLeft, 
+    status: sessionStatus, 
+    message: '', 
+    iconColorClass: '', 
+    bgColorClass: '', 
+    borderColorClass: '',
+    additionalMessage: '' 
   };
 
-  const config = statusConfig[sessionStatus] || statusConfig.unavailable;
-  const navButton = isCreator ? (
-    <Button onClick={() => navigate('/')} className="mt-6">
-      <Home className="mr-2 h-4 w-4" /> Get Back Home
-    </Button>
-  ) : (
-    <Button onClick={() => navigate('/')} className="mt-6">
-      <ArrowLeft className="mr-2 h-4 w-4" /> Back to Homepage
-    </Button>
-  );
-
-  return (
-    <div>
-      {sessionStatus !== 'loading' && (
-        <SessionStatusDisplay
-          timeLeft={timeLeft}
-          status={sessionStatus}
-          message={config.message}
-          iconColorClass={config.iconColor}
-          bgColorClass={config.bgColor}
-          borderColorClass={config.borderColor}
-          additionalMessage={config.additionalMessage}
-        />
-      )}
-
-      {showGroupJoinMessage && (
-        <GroupJoinSection 
-          countdown={groupJoinCountdown} 
-          onManualJoin={onManualGroupJoin}
-        />
-      )}
-
-      {!showGroupJoinMessage && (
+  switch (sessionStatus) {
+    case 'active':
+      statusProps.iconColorClass = 'text-primary';
+      statusProps.bgColorClass = 'bg-primary/10';
+      statusProps.borderColorClass = 'border-primary/30';
+      content = (
         <>
-          {config.content}
-          {navButton}
+          <SessionStatusDisplay {...statusProps} />
+          <ContactForm onSubmit={onSubmitContact} formSubmitting={formSubmitting} />
         </>
-      )}
-    </div>
-  );
+      );
+      break;
+    case 'submitted':
+      statusProps.message = 'Your contact information has been submitted!';
+      statusProps.iconColorClass = 'text-green-500';
+      statusProps.bgColorClass = 'bg-green-500/10';
+      statusProps.borderColorClass = 'border-green-500/30';
+      statusProps.timeLeft = ''; // No countdown needed here, message is primary
+      statusProps.additionalMessage = `You can come back after the session ends (around ${expirationTime}) to download the VCF file.`;
+      content = (
+        <>
+          <SessionStatusDisplay {...statusProps} />
+          <VcfImportInstructions />
+          {isCreator && <Button onClick={() => navigate('/')} className="mt-6"><Home className="mr-2 h-4 w-4" /> Get Back Home</Button>}
+          {isCreator && 
+            <Button onClick={() => navigate('/')} className="mt-6">
+              <Home className="mr-2 h-4 w-4" /> Got it, I'll Come Back Later
+            </Button>
+          }
+        </>
+      );
+      break;
+    case 'download':
+      statusProps.iconColorClass = 'text-accent';
+      statusProps.bgColorClass = 'bg-accent/10';
+      statusProps.borderColorClass = 'border-accent/30';
+      content = (
+        <>
+          <SessionStatusDisplay {...statusProps} />
+          <DownloadSection onDownload={onDownloadVCF} session={session} />
+          <Button onClick={() => navigate('/')} className="mt-6">
+            <Home className="mr-2 h-4 w-4" /> {isCreator ? 'Get Back Home' : 'Come Back'}
+          </Button>
+        </>
+      );
+      break;
+    case 'expired':
+    case 'unavailable':
+    default:
+      statusProps.status = sessionStatus === 'expired' ? 'expired' : 'unavailable';
+      statusProps.message = sessionStatus === 'expired' ? 'This session is permanently closed and contacts are no longer available.' : 'This session is no longer active or could not be found.';
+      statusProps.timeLeft = '';
+      statusProps.iconColorClass = 'text-destructive';
+      statusProps.bgColorClass = 'bg-destructive/10';
+      statusProps.borderColorClass = 'border-destructive/30';
+      content = (
+        <>
+          <SessionStatusDisplay {...statusProps} />
+          <Button onClick={() => navigate('/')} className="mt-6">
+            <Home className="mr-2 h-4 w-4" /> {isCreator ? 'Get Back Home' : 'Go to Home'}
+          </Button>
+        </>
+      );
+      break;
+  }
+
+  return <div>{content}</div>;
 };
 
 export default SessionMainContent;
